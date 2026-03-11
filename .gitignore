@@ -47,9 +47,10 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
-# Large files (uncomment if not tracking)
-# prepared_logs.csv
-# faiss_index_real/
+# Large data files (generated locally)
+prepared_logs.csv
+log_data.csv
+faiss_index_real/
 
 # Temporary files
 *.tmp

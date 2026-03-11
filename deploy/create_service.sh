@@ -10,8 +10,8 @@ After=network.target ollama.service
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/security-threat-analyzer
-Environment="PATH=/home/ubuntu/security-threat-analyzer/venv/bin"
-ExecStart=/home/ubuntu/security-threat-analyzer/venv/bin/streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+Environment="PATH=/home/ubuntu/security-threat-analyzer/.venv/bin"
+ExecStart=/home/ubuntu/security-threat-analyzer/.venv/bin/streamlit run app.py --server.port=8501 --server.address=0.0.0.0
 Restart=always
 RestartSec=10
 

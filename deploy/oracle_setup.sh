@@ -37,28 +37,28 @@ cd security-threat-analyzer
 
 # Create virtual environment
 echo "[7/8] Setting up Python environment..."
-python3.12 -m venv venv
-source venv/bin/activate
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+pip install -e .
 
-# Note: You'll need to upload your data files separately
+# Health check
+echo "[8/8] Running health check..."
+python -m security_analyzer check-health || true
+
 echo ""
 echo "=========================================="
 echo "✅ Setup Complete!"
 echo "=========================================="
 echo ""
-echo "⚠️  IMPORTANT: You need to upload your data files:"
-echo "    1. prepared_logs.csv (368 MB)"
-echo "    2. faiss_index_real/ folder (3.3 GB)"
-echo ""
-echo "Upload using SCP:"
+echo "⚠️  IMPORTANT: Upload your data files:"
 echo "    scp prepared_logs.csv ubuntu@<VM-IP>:~/security-threat-analyzer/"
 echo "    scp -r faiss_index_real ubuntu@<VM-IP>:~/security-threat-analyzer/"
 echo ""
 echo "Then run the app:"
 echo "    cd ~/security-threat-analyzer"
-echo "    source venv/bin/activate"
+echo "    source .venv/bin/activate"
 echo "    streamlit run app.py --server.port=8501 --server.address=0.0.0.0"
 echo ""
 echo "Open firewall port 8501 in Oracle Cloud Console:"
