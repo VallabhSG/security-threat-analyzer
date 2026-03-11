@@ -19,6 +19,9 @@ from security_analyzer.config import settings
 from security_analyzer.llm import get_llm
 from security_analyzer.rag import create_rag_chain
 from security_analyzer.vectorstore import get_retriever
+from security_analyzer.agent import create_pandas_agent, get_router_chain
+from langchain_ollama import ChatOllama
+from security_analyzer.data import load_prepared_data
 
 # ── Page config ──────────────────────────────────────────────────────
 
@@ -73,16 +76,23 @@ if "messages" not in st.session_state:
 
 @st.cache_resource
 def _load_models():
-    """Load and validate the retriever and LLM, then build the RAG chain."""
+    """Load and validate the retriever and LLM, then build the RAG chain & agents."""
     retriever = get_retriever()
     llm = get_llm(validate=True)
     chain = create_rag_chain(retriever, llm)
-    return chain
+    
+    # Setup Pandas Agent & Router
+    chat_llm = ChatOllama(model=settings.ollama_model)
+    df = load_prepared_data()
+    pandas_agent = create_pandas_agent(chat_llm, df)
+    router_chain = get_router_chain(chat_llm)
+    
+    return chain, pandas_agent, router_chain
 
 
 with st.spinner("⏳ Loading AI models…"):
     try:
-        rag_chain = _load_models()
+        rag_chain, pandas_agent, router_chain = _load_models()
     except Exception as exc:
         st.error(f"❌ **Error Loading Models**: {exc}")
         st.info(
@@ -117,27 +127,43 @@ with col2:
     search_button = st.button("🔎 Analyze", use_container_width=True)
 
 if search_button and user_query:
-    with st.spinner("🔄 Searching REAL logs and analyzing…"):
+    # 1. Show user message
+    st.session_state.messages.append({"role": "user", "content": user_query})
+    with st.chat_message("user"):
+        st.write(user_query)
+
+    # 2. Show assistant message with streaming
+    with st.chat_message("assistant"):
         try:
             start_time = time.time()
-            result = rag_chain.invoke({"input": user_query})
-            answer = result["answer"]
+            
+            with st.spinner("🔄 Classifying query…"):
+                route = router_chain.invoke({"question": user_query})
+            
+            if route.strip() == "ANALYZE":
+                used_agent = "Data Analyst Agent"
+                with st.spinner("📊 Analyzing entire dataset and calculating…"):
+                    result = pandas_agent.invoke({"input": user_query})
+                    answer = result.get("output", str(result))
+                    st.write(answer)
+            else:
+                used_agent = "RAG Search Agent"
+                def stream_answer():
+                    for chunk in rag_chain.stream({"input": user_query}):
+                        if "answer" in chunk:
+                            yield chunk["answer"]
+                
+                with st.spinner("🔄 Searching REAL logs and analyzing…"):
+                    answer = st.write_stream(stream_answer)
+                
             elapsed = time.time() - start_time
-
-            st.session_state.messages.append({"role": "user", "content": user_query})
             st.session_state.messages.append({"role": "assistant", "content": answer})
 
-            st.success("✓ Analysis complete!")
-
-            with st.chat_message("user"):
-                st.write(user_query)
-            with st.chat_message("assistant"):
-                st.write(answer)
-
-            m1, m2, m3 = st.columns(3)
+            m1, m2, m3, m4 = st.columns(4)
             m1.metric("Response Time", f"{elapsed:.2f}s")
-            m2.metric("Data Source", "Kaggle (2M logs)")
-            m3.metric("Model", f"{settings.ollama_model} + RAG")
+            m2.metric("Agent Used", used_agent)
+            m3.metric("Data Source", "Kaggle (2M logs)")
+            m4.metric("Model", settings.ollama_model)
 
         except Exception as exc:
             st.error(f"Error processing query: {exc}")
